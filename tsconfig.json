@@ -31,9 +31,9 @@
     //   "ES2022"
     // ],
     /* If you're building for a library */
-    "declaration": true
+    "declaration": true,
     /* If you're building for a library in a monorepo */
     // "composite": true,
-    // "declarationMap": true
+    "declarationMap": true
   }
 }
