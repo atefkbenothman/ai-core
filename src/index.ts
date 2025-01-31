@@ -1,4 +1,4 @@
-import fs from "fs"
+import * as fs from "fs"
 import { z } from "zod"
 import { createGroq } from "@ai-sdk/groq"
 import {
