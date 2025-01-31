@@ -1,5 +1,6 @@
+import fs from "fs"
 import { z } from "zod"
-import { groq } from "@ai-sdk/groq"
+import { createGroq } from "@ai-sdk/groq"
 import {
   generateText,
   extractReasoningMiddleware,
@@ -13,193 +14,361 @@ import {
 } from "ai"
 
 
-const groqModel: LanguageModel = wrapLanguageModel({
-  model: groq("deepseek-r1-distill-llama-70b"),
-  middleware: extractReasoningMiddleware({ tagName: "think" }),
-})
-
-
 export type AITextResponse = {
-  text: string
-  reasoning: string | undefined
-  usage: LanguageModelUsage
+  success: boolean
+  text?: string
+  reasoning?: string | undefined
+  usage?: LanguageModelUsage
+  error?: string
 }
 
-export type AITextResponseStream = {
-  textStream: AsyncIterable<string>
-  reasoning: Promise<string | undefined>
+export type AITextStreamResponse = {
+  success: boolean
+  textStream?: AsyncIterable<string>
+  reasoning?: Promise<string | undefined>
+  error?: string
 }
 
 export type AIObjectResponse = {
-  object: any
-  usage: LanguageModelUsage
+  success: boolean
+  object?: any
+  usage?: LanguageModelUsage
+  error?: string
+}
+
+export type AIObjectStreamResponse = {
+  success: boolean
+  partialObjectStream?: any
+  error?: string
 }
 
 
-/*
- * Chat with an AI
- */
-export async function chat(messages: CoreMessage[], model: LanguageModel = groqModel): Promise<AITextResponse> {
-  const { text, reasoning, usage } = await generateText({
-    model,
-    messages
-  })
-  return { text, reasoning, usage }
-}
+export class AI {
+  private provider: string
+  private apiKey: string
+  private modelName: string
+  private model: LanguageModel | undefined
 
+  constructor(provider: string, modelName: string, apiKey: string) {
+    this.provider = provider
+    this.apiKey = apiKey
+    this.modelName = modelName
+    this.model = undefined
+    this.initializeAIModel(provider, modelName, apiKey)
+  }
 
-/*
- * Chat with an AI (stream)
- */
-export async function streamChat(messages: CoreMessage[], model: LanguageModel = groqModel): Promise<AITextResponseStream> {
-  const { textStream, reasoning } = await streamText({
-    model,
-    messages
-  })
-  // we can get the final text block by awaiting
-  // const finalText = await textStream
-  return { textStream, reasoning }
-}
+  private initializeAIModel(provider: string, modelName: string, apiKey: string) {
+    switch (provider) {
+      case "groq":
+        const groq = createGroq({ apiKey })
+        this.model = wrapLanguageModel({
+          model: groq(modelName),
+          middleware: extractReasoningMiddleware({ tagName: "think" })
+        })
+    }
+  }
 
+  /* chat with an AI */
+  async chat(messages: CoreMessage[]): Promise<AITextResponse> {
+    if (!this.model) {
+      return {
+        success: false,
+        error: "ai model not set"
+      }
+    }
+    try {
+      const { text, reasoning, usage } = await generateText({
+        model: this.model,
+        messages
+      })
+      return {
+        success: true,
+        text,
+        reasoning,
+        usage
+      }
+    } catch (err) {
+      console.error(err)
+      return {
+        success: false,
+        error: String(err)
+      }
+    }
+  }
 
-/*
- * Generate structured output from an AI
- */
-export async function createObject(messages: CoreMessage[], schema: z.ZodSchema, model: LanguageModel = groqModel): Promise<AIObjectResponse> {
-  const { object, usage } = await generateObject({
-    model,
-    messages,
-    schema
-  })
-  return { object, usage }
-}
+  /* chat with an AI (stream) */
+  async streamChat(messages: CoreMessage[]): Promise<AITextStreamResponse> {
+    if (!this.model) {
+      return {
+        success: false,
+        error: "ai model not set"
+      }
+    }
+    try {
+      const { textStream, reasoning } = await streamText({
+        model: this.model,
+        messages
+      })
+      // we can get the final text block by awaiting
+      // const finalText = await textStream 
+      return {
+        success: true,
+        textStream,
+        reasoning,
+      }
+    } catch (err) {
+      console.error(err)
+      return {
+        success: false,
+        error: String(err)
+      }
+    }
+  }
 
+  /* generate structured output */
+  async createObject(messages: CoreMessage[], schema: z.ZodSchema): Promise<AIObjectResponse> {
+    if (!this.model) {
+      return {
+        success: false,
+        error: "ai model not set"
+      }
+    }
+    try {
+      const { object, usage } = await generateObject({
+        model: this.model,
+        messages,
+        schema
+      })
+      return {
+        success: true,
+        object,
+        usage,
+      }
+    } catch (err) {
+      console.error(err)
+      return {
+        success: false,
+        error: String(err)
+      }
+    }
+  }
 
-/*
- * Generate structured output from an AI (stream)
- */
-export async function streamCreateObject(messages: CoreMessage[], schema: z.ZodSchema, model: LanguageModel = groqModel): Promise<any> {
-  const { partialObjectStream } = await streamObject({
-    model,
-    messages,
-    schema
-  })
-  // we can get the final object by awaiting
-  // const finalObject = await partialObjectStream
-  return { partialObjectStream }
-}
+  /* generate structured output (stream) */
+  async streamCreateObject(messages: CoreMessage[], schema: z.ZodSchema): Promise<AIObjectStreamResponse> {
+    if (!this.model) {
+      return {
+        success: false,
+        error: "ai model not set"
+      }
+    }
+    try {
+      const { partialObjectStream } = await streamObject({
+        model: this.model,
+        messages,
+        schema
+      })
+      // we can get the final object by awaiting
+      // const finalObject = await partialObjectStream
+      return {
+        success: true,
+        partialObjectStream
+      }
+    } catch (err) {
+      console.error(err)
+      return {
+        success: false,
+        error: String(err)
+      }
+    }
+  }
 
+  /* classify text into a category */
+  async classifyText(messages: CoreMessage[], categories: string[]): Promise<AIObjectResponse> {
+    if (!this.model) {
+      return {
+        success: false,
+        error: "ai model not set"
+      }
+    }
+    try {
+      const { object, usage } = await generateObject({
+        model: this.model,
+        messages,
+        output: "enum",
+        enum: categories
+      })
+      return {
+        success: true,
+        object,
+        usage
+      }
+    } catch (err) {
+      console.error(err)
+      return {
+        success: false,
+        error: String(err)
+      }
+    }
+  }
 
-/*
- * Classify text into a category
- */
-export async function classifyText(messages: CoreMessage[], categories: string[], model: LanguageModel = groqModel): Promise<AIObjectResponse> {
-  const { object, usage } = await generateObject({
-    model,
-    messages,
-    output: "enum",
-    enum: categories
-  })
-  return { object, usage }
-}
-
-
-/*
- * Share an image (file path) and chat about it
- */
-export async function chatWithImageFilePath(messages: CoreMessage[], imageFilePath: string, model: LanguageModel = groqModel): Promise<AITextResponse> {
-  const imageAsUint8Array = await Bun.file(imageFilePath).bytes()
-
-  const { text, reasoning, usage } = await generateText({
-    model,
-    messages: [
-      ...messages,
-      {
-        role: "user",
-        content: [
+  /* share an image (file path) and chat about it */
+  async chatWithImageFilePath(messages: CoreMessage[], imageFilePath: string): Promise<AITextResponse> {
+    if (!this.model) {
+      return {
+        success: false,
+        error: "ai model not set"
+      }
+    }
+    try {
+      const imageAsUint8Array = await fs.readFileSync(imageFilePath)
+      const { text, reasoning, usage } = await generateText({
+        model: this.model,
+        messages: [
+          ...messages,
           {
-            type: "image",
-            image: imageAsUint8Array
+            role: "user",
+            content: [
+              {
+                type: "image",
+                image: imageAsUint8Array
+              }
+            ]
           }
         ]
+      })
+      return {
+        success: true,
+        text,
+        reasoning,
+        usage
       }
-    ]
-  })
-  return { text, reasoning, usage }
-}
+    } catch (err) {
+      console.error(err)
+      return {
+        success: false,
+        error: String(err)
+      }
+    }
+  }
 
-
-/*
- * Share an image (url) and chat about it
- */
-export async function chatWithImageURL(messages: CoreMessage[], imageURL: string, model: LanguageModel = groqModel): Promise<AITextResponse> {
-  const { text, reasoning, usage } = await generateText({
-    model,
-    messages: [
-      ...messages,
-      {
-        role: "user",
-        content: [
+  /* share an image (url) and chat about it */
+  async chatWithImageURL(messages: CoreMessage[], imageURL: string): Promise<AITextResponse> {
+    if (!this.model) {
+      return {
+        success: false,
+        error: "ai model not set"
+      }
+    }
+    try {
+      const { text, reasoning, usage } = await generateText({
+        model: this.model,
+        messages: [
+          ...messages,
           {
-            type: "image",
-            image: new URL(imageURL)
+            role: "user",
+            content: [
+              {
+                type: "image",
+                image: new URL(imageURL)
+              }
+            ]
           }
         ]
+      })
+      return {
+        success: true,
+        text,
+        reasoning,
+        usage
       }
-    ]
-  })
-  return { text, reasoning, usage }
-}
+    } catch (err) {
+      console.error(err)
+      return {
+        success: false,
+        error: String(err)
+      }
+    }
+  }
 
-
-/*
- * Share a file (pdf, json, etc) and chat about it
- */
-export async function chatWithFile(messages: CoreMessage[], filePath: string, mimeType: string, model: LanguageModel = groqModel): Promise<AITextResponse> {
-  const fileAsUint8Array = await Bun.file(filePath).bytes()
-
-  const { text, reasoning, usage } = await generateText({
-    model,
-    messages: [
-      ...messages,
-      {
-        role: "user",
-        content: [
+  /* share a file (pdf, json, etc) and chat about it */
+  async chatWithFile(messages: CoreMessage[], filePath: string, mimeType: string): Promise<AITextResponse> {
+    if (!this.model) {
+      return {
+        success: false,
+        error: "ai model not set"
+      }
+    }
+    try {
+      const fileAsUint8Array = await fs.readFileSync(filePath)
+      const { text, reasoning, usage } = await generateText({
+        model: this.model,
+        messages: [
+          ...messages,
           {
-            type: "file",
-            data: fileAsUint8Array,
-            mimeType
+            role: "user",
+            content: [
+              {
+                type: "file",
+                data: fileAsUint8Array,
+                mimeType
+              }
+            ]
           }
         ]
+      })
+      return {
+        success: true,
+        text,
+        reasoning,
+        usage
       }
-    ]
-  })
-  return { text, reasoning, usage }
-}
+    } catch (err) {
+      console.error(err)
+      return {
+        success: false,
+        error: String(err)
+      }
+    }
+  }
 
-
-/*
- * Extract text from files (pdf, json, etc)
- */
-export async function extractDataFromFile(messages: CoreMessage[], schema: z.ZodSchema, filePath: string, mimeType: string, model: LanguageModel = groqModel): Promise<AIObjectResponse> {
-  const fileAsUint8Array = await Bun.file(filePath).bytes()
-
-  const { object, usage } = await generateObject({
-    model,
-    schema,
-    messages: [
-      ...messages,
-      {
-        role: "user",
-        content: [
+  /* extract text from files (pdf, json, etc) */
+  async extractDataFromFile(messages: CoreMessage[], schema: z.ZodSchema, filePath: string, mimeType: string): Promise<AIObjectResponse> {
+    if (!this.model) {
+      return {
+        success: false,
+        error: "ai model not set"
+      }
+    }
+    try {
+      const fileAsUint8Array = await fs.readFileSync(filePath)
+      const { object, usage } = await generateObject({
+        model: this.model,
+        schema,
+        messages: [
+          ...messages,
           {
-            type: "file",
-            data: fileAsUint8Array,
-            mimeType
+            role: "user",
+            content: [
+              {
+                type: "file",
+                data: fileAsUint8Array,
+                mimeType
+              }
+            ]
           }
         ]
+      })
+      return {
+        success: true,
+        object,
+        usage
       }
-    ]
-  })
-  return { object, usage }
+    } catch (err) {
+      console.error(err)
+      return {
+        success: false,
+        error: String(err)
+      }
+    }
+  }
 }

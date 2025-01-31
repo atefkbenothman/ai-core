@@ -1,28 +1,39 @@
 {
   "compilerOptions": {
-    // Enable latest features
-    "lib": [
-      "ESNext",
-      "DOM"
-    ],
-    "target": "ESNext",
-    "module": "ESNext",
-    "moduleDetection": "force",
-    "jsx": "react-jsx",
-    "allowJs": true,
-    // Bundler mode
-    "moduleResolution": "bundler",
-    "allowImportingTsExtensions": true,
-    "verbatimModuleSyntax": true,
-    "noEmit": true,
-    // Best practices
-    "strict": true,
+    /* Base options */
+    "esModuleInterop": true,
     "skipLibCheck": true,
-    "noFallthroughCasesInSwitch": true,
-    // Some stricter flags (disabled by default)
-    "noUnusedLocals": false,
-    "noUnusedParameters": false,
-    "noPropertyAccessFromIndexSignature": false,
-    "outDir": "dist",
-  },
+    "target": "es2022",
+    "verbatimModuleSyntax": true,
+    "allowJs": true,
+    "resolveJsonModule": true,
+    "moduleDetection": "force",
+    /* Strictness */
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    /* If transpiling with typescript */
+    // "moduleResolution": "nodenext",
+    // "module": "NodeNext",
+    // "outDir": "dist",
+    // "sourceMap": true,
+    /* If not transplling with typescript (next.js, react, etc) */
+    "moduleResolution": "Bundler",
+    "module": "ESNext",
+    "noEmit": true,
+    /* If your code runs in the DOM */
+    "lib": [
+      "ES2022",
+      "DOM",
+      "DOM.Iterable"
+    ],
+    /* If your code doesn't run in the DOM */
+    // "lib": [
+    //   "ES2022"
+    // ],
+    /* If you're building for a library */
+    "declaration": true
+    /* If you're building for a library in a monorepo */
+    // "composite": true,
+    // "declarationMap": true
+  }
 }
