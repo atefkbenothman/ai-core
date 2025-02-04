@@ -6,6 +6,7 @@ import {
   extractReasoningMiddleware,
   wrapLanguageModel,
   streamText,
+  smoothStream,
   generateObject,
   streamObject,
   type LanguageModel,
@@ -79,7 +80,7 @@ export class AI {
     try {
       const { text, reasoning, usage } = await generateText({
         model: this.model,
-        messages
+        messages,
       })
       return {
         success: true,
@@ -107,7 +108,8 @@ export class AI {
     try {
       const { textStream, reasoning } = await streamText({
         model: this.model,
-        messages
+        messages,
+        experimental_transform: smoothStream()
       })
       // we can get the final text block by awaiting
       // const finalText = await textStream 
@@ -165,7 +167,7 @@ export class AI {
       const { partialObjectStream } = await streamObject({
         model: this.model,
         messages,
-        schema
+        schema,
       })
       // we can get the final object by awaiting
       // const finalObject = await partialObjectStream
